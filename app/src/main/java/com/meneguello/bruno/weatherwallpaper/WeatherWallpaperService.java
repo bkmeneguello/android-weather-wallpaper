@@ -52,16 +52,13 @@ public class WeatherWallpaperService extends WallpaperService {
 
         private Rect land;
 
-        private Rect sky;
-
-        private Drawable sun;
+        private Sky sky = new Sky();
 
         @Override
         public void onSurfaceCreated(SurfaceHolder holder) {
             this.holder = holder;
             this.locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
             this.locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, TimeUnit.MINUTES.toMillis(15), 10000, this);
-            this.sun = getDrawable(R.drawable.sun);
         }
 
         @Override
@@ -79,7 +76,7 @@ public class WeatherWallpaperService extends WallpaperService {
         public void onSurfaceChanged(SurfaceHolder holder, int format, int width, int height) {
             final Rect frame = holder.getSurfaceFrame();
             this.land = new Rect(frame.left, frame.height()*3/4, frame.right, frame.bottom);
-            this.sky = new Rect(frame.left, frame.top, frame.right, frame.bottom - land.height());
+            sky.setFrame(new Rect(frame.left, frame.top, frame.right, frame.bottom - land.height()));
             Log.i("WEATHERWALLPAPAER", "render why surface changed");
             render();
         }
@@ -92,8 +89,7 @@ public class WeatherWallpaperService extends WallpaperService {
         }
 
         private void render() {
-            final long current = System.currentTimeMillis();
-            if (weatherInfo == null || weatherInfo.isUpToDate(current)) {
+            if (weatherInfo == null || weatherInfo.isUpToDate()) {
                 Log.i("WEATHERWALLPAPAER", "update why not weather info");
                 update();
             } else {
@@ -101,19 +97,7 @@ public class WeatherWallpaperService extends WallpaperService {
                 final Rect frame = holder.getSurfaceFrame();
                 final Canvas canvas = surface.lockCanvas(frame);
 
-                final long sunrise = weatherInfo.getSunrise();
-                final long sunset = weatherInfo.getSunset();
-                float ratio = ((float) (current - sunrise)) / (sunset - sunrise);
-
-                final int left = (int) (frame.width() * ratio);
-                final int top = (int) (frame.height() * .75 * (1 - Math.sin(Math.PI * ratio)));
-
-                final Paint skyPaint = new Paint();
-                skyPaint.setShader(new RadialGradient(left, top + 32, frame.width() * 2, new int[]{Color.RED, Color.BLUE}, null, Shader.TileMode.CLAMP));
-                canvas.drawRect(sky, skyPaint);
-
-                sun.setBounds(left - sun.getIntrinsicWidth()/2, top, left + sun.getIntrinsicWidth()/2, top + sun.getIntrinsicHeight());
-                sun.draw(canvas);
+                sky.draw(canvas);
 
                 final Paint groundPaint = new Paint();
                 groundPaint.setColor(Color.BLACK);
@@ -126,6 +110,8 @@ public class WeatherWallpaperService extends WallpaperService {
         @Override
         public void onWeatherChanged(WeatherInfo weatherInfo) {
             this.weatherInfo = weatherInfo;
+            sky.setSunrise(weatherInfo.getSunrise());
+            sky.setSunset(weatherInfo.getSunset());
             Log.i("WEATHERWALLPAPAER", String.format("weather (sr: %tc, ss: %tc)", weatherInfo.getSunrise(), weatherInfo.getSunset()));
             render();
         }
@@ -149,6 +135,68 @@ public class WeatherWallpaperService extends WallpaperService {
         @Override
         public void onProviderDisabled(String provider) {
 
+        }
+
+        private class Sun {
+
+            private final Drawable drawable;
+
+            public Sun(Drawable drawable) {
+                this.drawable = drawable;
+            }
+
+            public void draw(Canvas canvas, double x, double y) {
+                drawable.setBounds(((int)x) - drawable.getIntrinsicWidth() / 2, ((int)y), ((int)x) + drawable.getIntrinsicWidth() / 2, ((int)y) + drawable.getIntrinsicHeight());
+                drawable.draw(canvas);
+            }
+        }
+
+        private class Sky {
+
+            private final Paint paint = new Paint();
+
+            private final Sun sun;
+
+            private Rect frame;
+
+            private long sunrise;
+
+            private long sunset;
+
+            private Sky() {
+                this.sun = new Sun(getDrawable(R.drawable.sun));
+            }
+
+            public Rect getFrame() {
+                return frame;
+            }
+
+            public void setFrame(Rect frame) {
+                this.frame = frame;
+            }
+
+            public void setSunrise(long sunrise) {
+                this.sunrise = sunrise;
+            }
+
+            public void setSunset(long sunset) {
+                this.sunset = sunset;
+            }
+
+            public void draw(Canvas canvas) {
+                final long current = System.currentTimeMillis();
+                final double ratio = ((double) (current - sunrise)) / (sunset - sunrise);
+                final double sunX = frame.width() * ratio;
+                final double sunY = frame.height() * (1 - Math.sin(Math.PI * ratio));
+                final int[] colors = {
+                        Color.rgb(0xC5, 0xE7, 0xFF),
+                        Color.rgb(0x42, 0x9F, 0xDA)
+                };
+                final int radius = frame.width() * 2;
+                paint.setShader(new RadialGradient(((int)sunX), ((int)sunY) + 32, radius, colors, null, Shader.TileMode.CLAMP));
+                canvas.drawRect(frame, paint);
+                sun.draw(canvas, sunX, sunY);
+            }
         }
     }
 

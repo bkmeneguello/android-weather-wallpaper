@@ -50,7 +50,8 @@ public class WeatherInfo {
         this.time = time;
     }
 
-    public boolean isUpToDate(long current) {
+    public boolean isUpToDate() {
+        final long current = System.currentTimeMillis();
         final long oneHourAgo = current - TimeUnit.HOURS.toMillis(1);
         return created < oneHourAgo && getTime() < oneHourAgo;
     }
